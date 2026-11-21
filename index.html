@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Control de puntualidad · FMDJ</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⏱️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Neuton:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!--
+  ============================================================
+  CONTROL DE PUNTUALIDAD — Fundación Mariana de Jesús
+  Talento Humano · versión 2.0 (noviembre 2026)
+
+  Cómo funciona:
+  1. El archivo NO contiene datos de personas. Los datos se leen
+     en el navegador cuando se carga el Excel (no se suben a ningún servidor).
+  2. Todo lo editable está en el botón «Ajustes» y en la pestaña
+     «Colaboradores». Los cambios se guardan en este navegador y
+     se pueden exportar/importar como archivo .json.
+  3. Opcional: si se publica un archivo config.json junto a este
+     index.html (por ejemplo en el mismo repositorio de GitHub), se
+     carga como configuración base para todos los equipos.
+  4. Opcional: index.html?src=URL carga el Excel desde un enlace.
+  5. Modo nube: si config.json trae "apiURL" (la URL /exec de Apps Script),
+     el tablero pide usuario y clave y guarda cortes, ajustes, parámetros y
+     justificaciones en la hoja de cálculo (ver Code.gs y README.md).
+  ============================================================
+-->
+<style>
+:root{
+  --navy:#003151; --vino:#8E1537; --oro:#FFBB33;
+  --atraso:#C8102E; --puntual:#2F7D59; --justificado:#FFBB33;
+  --bg:#F3F5F8; --surface:#FFFFFF; --surface-2:#E9EEF3; --ink:#10233A; --ink-2:#4A5D72; --line:#D5DDE6;
+  --focus:#1F6FEB; --atraso-text:var(--atraso);
+  color-scheme: light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B1826; --surface:#122437; --surface-2:#1A3048; --ink:#E5ECF3; --ink-2:#9FB2C6; --line:#2A425C;
+    --navy:#8FB8DA; --vino:#E07A95; --atraso-text:#FF7A8A; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B1826; --surface:#122437; --surface-2:#1A3048; --ink:#E5ECF3; --ink-2:#9FB2C6; --line:#2A425C;
+  --navy:#8FB8DA; --vino:#E07A95; --atraso-text:#FF7A8A; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Lato,"Segoe UI",Helvetica,Arial,sans-serif;font-variant-numeric:tabular-nums}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.wrap{max-width:1400px;margin:0 auto;padding:0 20px}
+
+/* Encabezado */
+header.top{border-bottom:3px solid var(--vino);background:var(--surface)}
+header.top .wrap{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding-top:14px;padding-bottom:14px}
+.brand h1{font-family:Neuton,Georgia,serif;font-weight:700;font-size:28px;line-height:1.1;margin:0;color:var(--vino)}
+.brand p{margin:2px 0 0;color:var(--ink-2);font-size:14px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:700;font-size:14px}
+.btn:hover{border-color:var(--navy)}
+.btn.primary{background:var(--navy);border-color:var(--navy);color:#fff}
+:root[data-theme="dark"] .btn.primary{color:#0B1826}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn.primary{color:#0B1826}}
+.btn.small{padding:4px 10px;font-size:13px}
+.btn.danger{color:var(--atraso)}
+
+/* Estado vacío */
+.drop{margin:40px auto;max-width:720px;border:2px dashed var(--line);border-radius:12px;padding:48px 28px;text-align:center;background:var(--surface)}
+.drop.over{border-color:var(--navy);background:var(--surface-2)}
+.drop h2{font-family:Neuton,Georgia,serif;font-size:30px;margin:0 0 8px;color:var(--navy)}
+.drop p{color:var(--ink-2);margin:6px auto;max-width:56ch}
+.drop .row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+.drop input{min-width:200px;flex:1;max-width:420px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.who{color:var(--ink-2);font-size:13px;align-self:center;margin-right:6px}
+.banner{background:color-mix(in srgb,var(--oro) 22%,var(--surface));border-left:4px solid var(--oro);padding:10px 14px;border-radius:4px;margin-top:16px;font-size:14px}
+
+/* Titular */
+.hero{padding:28px 0 8px}
+.hero .sentence{font-family:Neuton,Georgia,serif;font-size:clamp(24px,3.2vw,38px);line-height:1.2;margin:0;max-width:34ch}
+.hero .sentence b{color:var(--atraso-text);font-weight:700}
+.hero .meta{color:var(--ink-2);margin:10px 0 0;font-size:14px}
+.stats{display:flex;flex-wrap:wrap;gap:28px;margin:18px 0 6px;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stats div{min-width:120px}
+.stats strong{display:block;font-size:22px;font-weight:900}
+.stats span{color:var(--ink-2);font-size:13px}
+
+/* Pestañas y filtros */
+.tabs{display:flex;gap:4px;margin-top:18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tabs button{border:0;background:none;padding:10px 14px;cursor:pointer;font-weight:700;color:var(--ink-2);border-bottom:3px solid transparent;margin-bottom:-1px}
+.tabs button[aria-selected=true]{color:var(--navy);border-bottom-color:var(--navy)}
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:14px 0}
+.filters input,.filters select{padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.filters label{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--ink-2)}
+.panel{display:none}.panel.active{display:block}
+.scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+
+/* Tabla resumen */
+table{border-collapse:collapse;width:100%}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top;font-size:14px}
+th{background:var(--surface-2);font-weight:700;white-space:nowrap;cursor:pointer;user-select:none;position:sticky;top:0}
+th[data-sort]::after{content:"";margin-left:4px}
+th.asc::after{content:"▲";font-size:10px}th.desc::after{content:"▼";font-size:10px}
+td.num,th.num{text-align:right}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--surface-2)}
+tr.flag td:first-child{box-shadow:inset 4px 0 0 var(--atraso)}
+tr.off{opacity:.55}
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:700;background:var(--surface-2);color:var(--ink-2)}
+.pill.red{background:color-mix(in srgb,var(--atraso) 15%,transparent);color:var(--atraso-text)}
+.obs{color:var(--atraso-text);font-weight:700}
+.col-observacion{min-width:340px}.col-cargo,.col-departamento{min-width:150px}.col-nombre{min-width:170px}
+.muted{color:var(--ink-2)}
+
+/* Calendario */
+.cal td,.cal th{padding:0;border:1px solid var(--line);text-align:center;font-size:12px}
+.cal th{padding:4px 2px;min-width:44px;cursor:default}
+.cal th.we{color:var(--ink-2);background:var(--bg)}
+.cal th.name,.cal td.name{position:sticky;left:0;z-index:2;text-align:left;padding:6px 10px;min-width:200px;max-width:240px;background:var(--surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal th.name{z-index:3;background:var(--surface-2)}
+.cal td.c{height:34px;min-width:44px;cursor:default;line-height:1.1}
+.cal td.c small{display:block;font-size:10px;font-weight:700}
+.c.atraso{background:var(--atraso);color:#fff;cursor:pointer}
+.c.justificado{background:var(--justificado);color:#2B1D00;cursor:pointer}
+.c.puntual{color:var(--puntual)}
+.c.sin{background:repeating-linear-gradient(45deg,var(--surface-2),var(--surface-2) 4px,transparent 4px,transparent 8px);color:var(--ink-2)}
+.c.inv{outline:2px dashed var(--oro);outline-offset:-3px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--ink-2);padding:10px 0}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:5px;border:1px solid var(--line)}
+
+/* Diálogos */
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);padding:0;max-width:min(920px,96vw);width:100%}
+dialog::backdrop{background:rgba(5,15,25,.55)}
+dialog header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface);z-index:1}
+dialog header h3{margin:0;font-family:Neuton,Georgia,serif;font-size:22px;color:var(--navy)}
+dialog .body{padding:16px 18px;max-height:72vh;overflow:auto}
+dialog footer{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.form{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px 20px}
+.form fieldset{grid-column:1/-1;border:0;border-top:1px solid var(--line);padding:12px 0 0;margin:6px 0 0;display:contents}
+.form h4{grid-column:1/-1;margin:14px 0 0;font-size:15px;color:var(--vino)}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-weight:700;font-size:13px}
+.field small{color:var(--ink-2);font-size:12px}
+.field input,.field select,.field textarea{padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.field input[type=color]{padding:2px;height:36px}
+.field.wide{grid-column:1/-1}
+.chk{display:flex;gap:8px;flex-wrap:wrap}
+.chk label{font-weight:400;display:flex;gap:4px;align-items:center}
+.note{background:var(--surface-2);border-left:4px solid var(--oro);padding:10px 12px;border-radius:4px;font-size:13px;margin:10px 0}
+.toast{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 16px;border-radius:6px;font-weight:700;display:none;z-index:50;max-width:90vw}
+:root[data-theme="dark"] .toast{color:#0B1826}
+.hidden{display:none!important}
+.params input[type=text],.params input[type=number]{width:100%;min-width:90px;padding:5px 7px;border:1px solid var(--line);border-radius:5px;background:var(--bg)}
+.params tbody tr{cursor:default}
+footer.foot{color:var(--ink-2);font-size:12px;padding:30px 0}
+
+@media (max-width:640px){.brand h1{font-size:22px}.stats{gap:16px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* Impresión A4 */
+@page{size:A4 landscape;margin:12mm}
+@media print{
+  :root{--bg:#fff;--surface:#fff;--surface-2:#eef1f4;--ink:#000;--ink-2:#333;--line:#bbb}
+  body{font-size:11px}
+  .actions,.tabs,.filters,.drop,dialog,.toast,.no-print,footer.foot{display:none!important}
+  .panel{display:none!important}
+  .panel.print-me{display:block!important}
+  .scroll{overflow:visible;border:0}
+  th{position:static}
+  tbody tr{break-inside:avoid}
+  .hero .sentence{font-size:20px;max-width:none}
+  .cal td.c,.cal th{min-width:0}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <h1 id="tTitulo">Control de puntualidad</h1>
+      <p id="tSub">Fundación Mariana de Jesús — Talento Humano</p>
+    </div>
+    <div class="actions">
+      <span class="who" id="who"></span>
+      <button class="btn primary" id="bCargar">Cargar Excel</button>
+      <button class="btn primary hidden" id="bGuardarCorte">Guardar corte en la nube</button>
+      <button class="btn" id="bUrl" title="Volver a leer el Excel desde el enlace guardado en Ajustes">Actualizar desde enlace</button>
+      <button class="btn" id="bExport" disabled>Exportar a Excel</button>
+      <button class="btn" id="bPrint" disabled>Imprimir A4</button>
+      <button class="btn" id="bAjustes">Ajustes</button>
+      <button class="btn hidden" id="bSalir">Salir</button>
+    </div>
+  </div>
+</header>
+<input type="file" id="file" accept=".xlsx,.xls,.xlsm,.csv" hidden>
+
+<main class="wrap">
+  <section class="drop hidden" id="login">
+    <h2>Ingresar</h2>
+    <p>Este tablero está conectado a la base de datos de Talento Humano. Ingresa con el usuario y la clave que te asignó TH.</p>
+    <form class="row" id="fLogin" autocomplete="on">
+      <input id="lUser" name="username" autocomplete="username" placeholder="Usuario" aria-label="Usuario">
+      <input id="lPass" name="password" type="password" autocomplete="current-password" placeholder="Clave" aria-label="Clave">
+      <button class="btn primary" id="bLogin" type="submit">Ingresar</button>
+    </form>
+    <p class="muted" id="lMsg" role="alert"></p>
+  </section>
+
+  <section class="drop" id="drop">
+    <h2>Suelta aquí el reporte de asistencia</h2>
+    <p>Arrastra el Excel del biométrico (una hoja por colaborador, con las columnas Fecha, Horario, Entrada y Salida) o elige el archivo. Se lee solo en este navegador: no se sube a ningún servidor.</p>
+    <div class="row">
+      <button class="btn primary" id="bCargar2">Elegir archivo</button>
+    </div>
+    <div class="row" id="urlQuickRow">
+      <input type="url" id="urlQuick" placeholder="o pega un enlace de descarga del Excel (Google Sheets, OneDrive, GitHub…)">
+      <button class="btn" id="bUrlQuick">Leer enlace</button>
+    </div>
+    <p class="muted" style="font-size:13px;margin-top:16px">Los ajustes, las justificaciones y los datos por colaborador se guardan en este navegador. Exporta la configuración desde Ajustes para usarla en otro equipo.</p>
+  </section>
+
+  <section id="dash" class="hidden">
+    <div class="banner hidden" id="bannerPend">Este corte se leyó del Excel y todavía no está en la nube. Revísalo y pulsa «Guardar corte en la nube». Hasta entonces nadie más lo ve y no se puede justificar.</div>
+    <div class="hero">
+      <p class="sentence" id="heroSentence"></p>
+      <p class="meta" id="heroMeta"></p>
+    </div>
+    <div class="stats" id="stats"></div>
+
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="resumen" aria-selected="true">Resumen</button>
+      <button role="tab" data-tab="calendario" aria-selected="false">Calendario</button>
+      <button role="tab" data-tab="calidad" aria-selected="false">Calidad de datos</button>
+      <button role="tab" data-tab="colaboradores" aria-selected="false">Colaboradores</button>
+      <button role="tab" data-tab="bitacora" aria-selected="false" class="hidden">Bitácora</button>
+    </nav>
+
+    <div class="filters">
+      <select id="fCorte" class="hidden" aria-label="Corte"></select>
+      <input type="search" id="fBuscar" placeholder="Buscar nombre, ID o cargo" aria-label="Buscar">
+      <select id="fDepto" aria-label="Departamento"><option value="">Todos los departamentos</option></select>
+      <label><input type="checkbox" id="fSoloObs"> Solo con observación</label>
+      <label><input type="checkbox" id="fSoloAtraso"> Solo con atrasos</label>
+      <label>Desde <input type="date" id="fDesde"></label>
+      <label>Hasta <input type="date" id="fHasta"></label>
+    </div>
+
+    <section class="panel active print-me" id="p-resumen">
+      <div class="scroll"><table id="tResumen"><thead></thead><tbody></tbody></table></div>
+    </section>
+
+    <section class="panel" id="p-calendario">
+      <div class="legend">
+        <span><i style="background:var(--atraso)"></i>Atraso (minutos)</span>
+        <span><i style="background:var(--justificado)"></i>Justificado</span>
+        <span><i style="background:var(--surface)"></i><span style="color:var(--puntual);font-weight:700">07:58</span> Puntual</span>
+        <span><i class="c sin"></i>Con horario y sin marcación</span>
+        <span><i style="outline:2px dashed var(--oro);outline-offset:-3px"></i>Dato ilegible</span>
+        <span><span class="muted">F</span> Feriado</span>
+        <span>Clic en un día rojo para justificarlo.</span>
+      </div>
+      <div class="scroll"><table class="cal" id="tCal"></table></div>
+    </section>
+
+    <section class="panel" id="p-calidad">
+      <div class="note">Revisa esto antes de aplicar cualquier observación. Un día sin marcación o un horario mal cargado en el biométrico no es un atraso, pero sí puede cambiar el resultado.</div>
+      <div class="scroll"><table id="tCalidad"><thead><tr><th>Tipo</th><th>Colaborador</th><th>Fecha</th><th>Detalle</th></tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <section class="panel" id="p-colaboradores">
+      <div class="note">Parámetros por persona. Se guardan por ID de empleado y se mantienen mes a mes. Excluir a alguien del control debe responder a un criterio documentado (por ejemplo, funciones de dirección o confianza aprobadas por la Dirección Ejecutiva), nunca a una decisión caso por caso.</div>
+      <div class="scroll"><table class="params" id="tParams"><thead><tr><th>ID</th><th>Colaborador</th><th>Incluir en el control</th><th>Horario de entrada alterno</th><th>Remuneración mensual (USD, opcional)</th><th>Nota / sustento</th></tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <section class="panel" id="p-bitacora">
+      <div class="note">Registro de quién ingresó, cargó cortes, cambió ajustes o parámetros y justificó atrasos. Viene de la pestaña _bitacora de la hoja y no se puede editar desde aquí.</div>
+      <div class="scroll"><table id="tLog"><thead><tr><th>Fecha</th><th>Usuario</th><th>Perfil</th><th>Acción</th><th>Detalle</th></tr></thead><tbody></tbody></table></div>
+    </section>
+  </section>
+
+  <footer class="foot" id="foot">Las observaciones de este tablero son sugerencias de descuento. Antes de aplicarlas a nómina deben pasar por la justificación del Director de Área y la resolución de la Dirección de Talento Humano, según el art. 29 lit. c del Reglamento Interno de Trabajo. Las multas no pueden superar el 10 % de la remuneración mensual (art. 44 lit. b del Código del Trabajo).</footer>
+</main>
+
+<!-- Detalle de colaborador -->
+<dialog id="dDetalle">
+  <header><h3 id="detTitulo"></h3><button class="btn small" data-close>Cerrar</button></header>
+  <div class="body" id="detBody"></div>
+</dialog>
+
+<!-- Justificación -->
+<dialog id="dJust" style="max-width:520px">
+  <header><h3>Justificar atraso</h3><button class="btn small" data-close>Cerrar</button></header>
+  <div class="body">
+    <p id="justInfo" class="muted"></p>
+    <div class="field wide"><label for="justMotivo">Motivo y respaldo</label>
+      <textarea id="justMotivo" rows="3" placeholder="Ej.: Permiso aprobado por el Director de Área, memo 045-2026"></textarea></div>
+  </div>
+  <footer><button class="btn danger hidden" id="justQuitar">Quitar justificación</button><button class="btn primary" id="justGuardar">Guardar justificación</button></footer>
+</dialog>
+
+<!-- Ajustes -->
+<dialog id="dAjustes">
+  <header><h3>Ajustes</h3><button class="btn small" data-close>Cerrar</button></header>
+  <div class="body"><div class="form" id="formAjustes"></div></div>
+  <footer>
+    <button class="btn" id="bExpCfg">Exportar configuración (.json)</button>
+    <button class="btn" id="bImpCfg">Importar configuración</button>
+    <button class="btn danger" id="bReset">Restablecer valores</button>
+    <button class="btn primary" data-close>Listo</button>
+  </footer>
+  <input type="file" id="fileCfg" accept=".json" hidden>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ==========================================================
+   1. CONFIGURACIÓN POR DEFECTO
+   Puedes cambiar estos valores aquí, en Ajustes, o en config.json
+   ========================================================== */
+const DEFAULTS = {
+  titulo: "Control de puntualidad",
+  subtitulo: "Fundación Mariana de Jesús — Talento Humano",
+  tema: "auto",                       // auto | light | dark
+  colores: { atraso:"#C8102E", puntual:"#2F7D59", justificado:"#FFBB33", primario:"#003151", acento:"#8E1537" },
+
+  // Reglas de cálculo
+  toleranciaDiaria: 0,                // minutos de gracia por día
+  toleranciaModo: "completo",         // completo: si pasa la tolerancia cuenta todo el atraso | excedente: solo lo que pasa
+  umbralMensual: 30,                  // minutos acumulados en el corte
+  comparador: ">",                    // ">" se pasó de | ">=" igual o más
+  baseCalculo: "bruto",               // bruto: todo el atraso | neto: resta lo que se quedó después de su hora de salida ese día
+  montoDescuento: "total",            // total: todos los minutos | excedente: solo los minutos sobre el umbral
+  diasNoEvaluados: [],                // 0=domingo … 6=sábado
+  feriados: "",                       // fechas AAAA-MM-DD separadas por coma; no se evalúan
+  horasMensuales: 240,                // divisor para valor hora (40 h semanales)
+  topeMulta: 10,                      // % máximo de la remuneración
+  textoObservacion: "Observación de descuento: {minutos} min ({hhmm}) por {dias} atrasos en el corte. Pendiente de justificación (art. 29 lit. c del Reglamento Interno).",
+
+  // Lectura del Excel
+  columnas: { fecha:"Fecha", horario:"Horario", entrada:"Entrada", salida:"Salida", justificacion:"Justificación" },
+  campos: { marcador:"Id del Empleado", id:"Id del Empleado", nombres:"Nombres", apellidos:"Apellidos", departamento:"Departamento", cargo:"Cargo" },
+  formatoFecha: "auto",               // auto | dmy | mdy
+  hojasIgnoradas: "",                 // nombres separados por coma
+
+  // Nube
+  apiURL: "",                         // URL /exec de Apps Script. Vacío = modo local (sin nube)
+  fuenteURL: "",
+  cargarAlAbrir: false,
+
+  // Tabla resumen
+  columnasResumen: ["id","nombre","departamento","diasAtraso","minBase","minComp","observacion","sinRegistro","omision","justificados","valor"]
+};
+
+const COLS_RESUMEN = {
+  id:{t:"ID"}, nombre:{t:"Colaborador"}, departamento:{t:"Departamento"}, cargo:{t:"Cargo"},
+  evaluados:{t:"Días evaluados",n:1}, diasAtraso:{t:"Días con atraso",n:1}, minBruto:{t:"Min. atraso bruto",n:1},
+  minComp:{t:"Min. compensados",n:1}, minBase:{t:"Min. considerados",n:1}, sinRegistro:{t:"Días sin marcación",n:1},
+  omision:{t:"Omisión de entrada",n:1}, justificados:{t:"Justificados",n:1}, minDescuento:{t:"Min. a descontar",n:1},
+  observacion:{t:"Observación"}, valor:{t:"Valor estimado (USD)",n:1}
+};
+
+/* ==========================================================
+   2. NÚCLEO DE CÁLCULO (lectura y evaluación)
+   ========================================================== */
+/*CORE-START*/
+const Core = (() => {
+  const norm = s => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toLowerCase();
+  const pad = n => String(n).padStart(2,"0");
+  const ymd = (y,m,d) => (y>1900&&m>=1&&m<=12&&d>=1&&d<=31) ? `${y}-${pad(m)}-${pad(d)}` : null;
+  const hhmm = m => `${Math.floor(m/60)}:${pad(m%60)}`;
+  const toHM = m => m==null ? "" : `${pad(Math.floor(m/60))}:${pad(m%60)}`;
+
+  function parseTime(v, strict){
+    if (v===null || v===undefined) return {empty:true};
+    if (typeof v==="number" && v>=0 && v<1) return {min:Math.round(v*1440)};
+    const s = String(v).trim();
+    if (!s) return {empty:true};
+    const m = s.match(/(\d{1,2})\s*[:hH.]\s*(\d{0,2})/);
+    if (!m) return {invalid:true, raw:s};
+    let h = +m[1]; const ms = m[2];
+    if (strict && ms.length!==2) return {invalid:true, raw:s};
+    const mm = ms==="" ? 0 : +ms;
+    if (h>23 || mm>59) return {invalid:true, raw:s};
+    if (/p\.?\s*m/i.test(s) && h<12) h += 12;
+    if (/a\.?\s*m/i.test(s) && h===12) h = 0;
+    return {min:h*60+mm};
+  }
+
+  function parseHorario(v){
+    const s = String(v ?? "").trim();
+    if (!s) return null;
+    const t = [...s.matchAll(/(\d{1,2})\s*[:hH.]\s*(\d{0,2})/g)];
+    if (!t.length) return {invalid:true, raw:s};
+    const toMin = x => { const h=+x[1], m=x[2]===""?0:+x[2]; return (h>23||m>59)?null:h*60+m; };
+    const start = toMin(t[0]), end = t[1] ? toMin(t[1]) : null;
+    if (start===null) return {invalid:true, raw:s};
+    return {start, end, raw:s};
+  }
+
+  function parseDate(v, fmt){
+    if (v instanceof Date && !isNaN(v)) return ymd(v.getFullYear(), v.getMonth()+1, v.getDate());
+    if (typeof v==="number" && v>20000 && v<80000){ const d=new Date(Math.round((v-25569)*864e5)); return d.toISOString().slice(0,10); }
+    const s = String(v ?? "").trim();
+    let m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+    if (m) return ymd(+m[1],+m[2],+m[3]);
+    m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})/);
+    if (m){
+      let a=+m[1], b=+m[2], y=+m[3]; if (y<100) y+=2000;
+      const mdy = fmt==="mdy" || (fmt==="auto" && a<=12 && b>12);
+      return mdy ? ymd(y,a,b) : ymd(y,b,a);
+    }
+    return null;
+  }
+
+  function parseInfo(s){
+    const o = {};
+    for (const m of String(s).matchAll(/([^,:]+):\s*([^,]*)/g)) o[norm(m[1])] = m[2].trim();
+    return o;
+  }
+
+  function parseWorkbook(wb, cfg, XLSXlib){
+    const X = XLSXlib || (typeof XLSX!=="undefined" ? XLSX : null);
+    const emps = [], issues = [];
+    const C = cfg.columnas, F = cfg.campos;
+    const ignore = new Set(String(cfg.hojasIgnoradas||"").split(",").map(norm).filter(Boolean));
+    const seen = {};
+    for (const name of wb.SheetNames){
+      if (ignore.has(norm(name))) continue;
+      const rows = X.utils.sheet_to_json(wb.Sheets[name], {header:1, raw:false, defval:""});
+      let info = {}, hdr = -1; const idx = {};
+      for (let r=0; r<Math.min(rows.length,20); r++){
+        const row = rows[r] || [];
+        const joined = row.filter(c=>String(c).trim()!=="").join(",");
+        if (!Object.keys(info).length && norm(joined).includes(norm(F.marcador))) info = parseInfo(joined);
+        if (row.some(c => norm(c)===norm(C.fecha))){
+          hdr = r;
+          row.forEach((c,i) => { for (const k of ["fecha","horario","entrada","salida","justificacion"]) if (C[k] && norm(c)===norm(C[k]) && idx[k]===undefined) idx[k]=i; });
+          break;
+        }
+      }
+      if (hdr<0 || idx.entrada===undefined || idx.horario===undefined){
+        issues.push({tipo:"Hoja omitida", nombre:name, fecha:"", detalle:`No se encontró la fila de encabezados con «${C.fecha}», «${C.horario}» y «${C.entrada}».`});
+        continue;
+      }
+      let id = String(info[norm(F.id)] || name).trim();
+      if (seen[id]) { id = `${id}-${name}`; } seen[id] = 1;
+      const nombre = [info[norm(F.nombres)], info[norm(F.apellidos)]].filter(Boolean).join(" ").trim() || name;
+      const days = [];
+      for (let r=hdr+1; r<rows.length; r++){
+        const row = rows[r] || [];
+        const fecha = parseDate(row[idx.fecha], cfg.formatoFecha);
+        if (!fecha) continue;
+        days.push({ fecha, horario:row[idx.horario], entrada:row[idx.entrada],
+          salida: idx.salida!==undefined ? row[idx.salida] : "",
+          just: idx.justificacion!==undefined ? String(row[idx.justificacion]||"").trim() : "" });
+      }
+      emps.push({ id, nombre, departamento: info[norm(F.departamento)] || "", cargo: info[norm(F.cargo)] || "", hoja:name, days });
+    }
+    return {emps, issues};
+  }
+
+  function fill(tpl, s, cfg){
+    return String(tpl)
+      .replaceAll("{minutos}", s.minDescuento).replaceAll("{hhmm}", hhmm(s.minDescuento))
+      .replaceAll("{minutosTotales}", s.minBase).replaceAll("{dias}", s.diasAtraso)
+      .replaceAll("{umbral}", cfg.umbralMensual).replaceAll("{nombre}", s.nombre);
+  }
+
+  function evaluate(data, cfg, params, justif, range){
+    const res = [], quality = [...data.issues];
+    const noEval = new Set((cfg.diasNoEvaluados||[]).map(Number));
+    const feriados = new Set(String(cfg.feriados||"").split(/[,;\s]+/).map(x=>parseDate(x.trim(),"dmy")).filter(Boolean));
+    const tol = Number(cfg.toleranciaDiaria)||0, umbral = Number(cfg.umbralMensual)||0;
+    for (const e of data.emps){
+      const p = params[e.id] || {};
+      const alt = p.horarioAlterno ? parseHorario(p.horarioAlterno) : null;
+      const s = { id:e.id, nombre:e.nombre, departamento:e.departamento, cargo:e.cargo, hoja:e.hoja,
+        incluir: p.incluir!==false, nota:p.nota||"", dias:[], evaluados:0, diasAtraso:0, minBruto:0, minComp:0,
+        sinRegistro:0, omision:0, justificados:0, minJustificados:0, invalidos:0 };
+      for (const d of e.days){
+        if (range && range.desde && d.fecha < range.desde) continue;
+        if (range && range.hasta && d.fecha > range.hasta) continue;
+        const dow = new Date(d.fecha+"T12:00:00").getDay();
+        const day = { fecha:d.fecha, dow, horario:String(d.horario||"").trim(), entradaRaw:String(d.entrada||"").trim(), salidaRaw:String(d.salida||"").trim(), estado:"", min:0, comp:0, motivo:"" };
+        let h = day.horario ? parseHorario(d.horario) : null;
+        if (h && !h.invalid && alt && !alt.invalid) h = alt;
+        const en = parseTime(d.entrada, true), sa = parseTime(d.salida, true);
+        day.entrada = en.min; day.salida = sa.min;
+        if (sa.invalid) quality.push({tipo:"Salida ilegible", nombre:e.nombre, fecha:d.fecha, detalle:`Valor «${sa.raw}»`});
+        if (feriados.has(d.fecha)) day.estado = "feriado";
+        else if (noEval.has(dow)) day.estado = "no_evaluado";
+        else if (!h){
+          day.estado = "libre";
+          if (!en.empty) { day.estado = "marca_sin_horario"; quality.push({tipo:"Marcación sin horario", nombre:e.nombre, fecha:d.fecha, detalle:`Entrada ${day.entradaRaw} en un día sin horario asignado. No se evalúa.`}); }
+        }
+        else if (h.invalid){ day.estado="invalido"; s.invalidos++; quality.push({tipo:"Horario ilegible", nombre:e.nombre, fecha:d.fecha, detalle:`Valor «${h.raw}»`}); }
+        else if (en.empty){
+          if (sa.empty){ day.estado="sin_registro"; s.sinRegistro++; }
+          else { day.estado="omision"; s.omision++; }
+        }
+        else if (en.invalid){ day.estado="invalido"; s.invalidos++; quality.push({tipo:"Entrada ilegible", nombre:e.nombre, fecha:d.fecha, detalle:`Valor «${en.raw}». No se evalúa hasta corregirlo.`}); }
+        else {
+          s.evaluados++;
+          const late = en.min - h.start; day.late = late;
+          if (late > tol){
+            const m = cfg.toleranciaModo==="excedente" ? late - tol : late;
+            let comp = 0;
+            if (h.end!=null && sa.min!=null) comp = Math.min(m, Math.max(0, sa.min - h.end));
+            const key = e.id+"|"+d.fecha;
+            const j = justif[key] ? justif[key].motivo : d.just;
+            day.min = m; day.comp = comp;
+            if (j){ day.estado="justificado"; day.motivo=j; day.motivoOrigen = justif[key] ? "tablero" : "excel"; day.por = justif[key]?.por || ""; s.justificados++; s.minJustificados+=m; }
+            else { day.estado="atraso"; s.diasAtraso++; s.minBruto+=m; s.minComp+=comp; }
+          } else day.estado = "puntual";
+        }
+        if (h && !h.invalid) day.horaInicio = h.start;
+        s.dias.push(day);
+      }
+      s.minNeto = s.minBruto - s.minComp;
+      s.minBase = cfg.baseCalculo==="neto" ? s.minNeto : s.minBruto;
+      const supera = cfg.comparador===">=" ? s.minBase>=umbral : s.minBase>umbral;
+      s.supera = supera;
+      s.observacion = s.incluir && supera;
+      s.minDescuento = s.observacion ? (cfg.montoDescuento==="excedente" ? s.minBase-umbral : s.minBase) : 0;
+      const rem = Number(p.remuneracion)||0;
+      if (rem>0 && s.observacion){
+        s.valor = Math.round(rem/(Number(cfg.horasMensuales)||240)/60*s.minDescuento*100)/100;
+        s.tope = Math.round(rem*(Number(cfg.topeMulta)||10))/100;
+        s.superaTope = s.valor > s.tope;
+      }
+      s.textoObs = s.observacion ? fill(cfg.textoObservacion, s, cfg) : "";
+      res.push(s);
+    }
+    return {res, quality};
+  }
+
+  return {norm, parseTime, parseHorario, parseDate, parseInfo, parseWorkbook, evaluate, hhmm, toHM};
+})();
+/*CORE-END*/
+
+/* ==========================================================
+   3. ESTADO Y ALMACENAMIENTO
+   ========================================================== */
+const STORE_KEY = "fmdj_puntualidad_v1";
+const state = { cfg: structuredClone(DEFAULTS), params:{}, justif:{}, data:null, result:null, fileName:"", tab:"resumen", sort:{k:"minBase", dir:-1}, repoCfg:null };
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const DOW = ["dom","lun","mar","mié","jue","vie","sáb"];
+const MES = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+const fmtFecha = f => { const [y,m,d] = f.split("-"); return `${+d} ${MES[+m-1]} ${y}`; };
+
+function deepMerge(base, extra){
+  const out = structuredClone(base);
+  for (const k in (extra||{})){
+    if (extra[k] && typeof extra[k]==="object" && !Array.isArray(extra[k]) && typeof out[k]==="object" && !Array.isArray(out[k])) out[k] = deepMerge(out[k], extra[k]);
+    else out[k] = extra[k];
+  }
+  return out;
+}
+function save(){
+  try {
+    const o = state.apiURL ? {cfg:{apiURL:state.apiURL, tema:state.cfg.tema}} : {cfg:state.cfg, params:state.params, justif:state.justif};
+    localStorage.setItem(STORE_KEY, JSON.stringify(o));
+  } catch(e){}
+}
+function loadLocal(){
+  try { const raw = localStorage.getItem(STORE_KEY); return raw ? JSON.parse(raw) : null; } catch(e){ return null; }
+}
+function toast(msg, ms=3200){ const t=$("#toast"); t.textContent=msg; t.style.display="block"; clearTimeout(t._h); t._h=setTimeout(()=>t.style.display="none", ms); }
+
+/* ==========================================================
+   4. CARGA DEL EXCEL (archivo o enlace)
+   ========================================================== */
+function readBuffer(buf, name){
+  if (typeof XLSX==="undefined"){ toast("No se pudo cargar la librería de Excel (sin internet o bloqueada)."); return; }
+  try{
+    const wb = XLSX.read(buf, {type:"array"});
+    const data = Core.parseWorkbook(wb, state.cfg);
+    if (!data.emps.length){ toast("El archivo no tiene hojas con el formato esperado. Revisa los nombres de columnas en Ajustes."); return; }
+    state.data = data; state.fileName = name;
+    const all = data.emps.flatMap(e => e.days.map(d=>d.fecha)).sort();
+    $("#fDesde").value = all[0] || ""; $("#fHasta").value = all[all.length-1] || "";
+    $("#drop").classList.add("hidden"); $("#dash").classList.remove("hidden");
+    $("#bExport").disabled = false; $("#bPrint").disabled = false;
+    fillDeptos(); recompute();
+    toast(`Archivo leído: ${data.emps.length} colaboradores.`);
+  }catch(err){ console.error(err); toast("No se pudo leer el archivo: "+err.message, 6000); }
+}
+function normalizeUrl(u){
+  u = String(u||"").trim();
+  const g = u.match(/docs\.google\.com\/spreadsheets\/d\/([^/]+)/);
+  if (g && !/\/export\?|output=xlsx|\/pub\?/.test(u)) return `https://docs.google.com/spreadsheets/d/${g[1]}/export?format=xlsx`;
+  if (/github\.com\/.+\/blob\//.test(u)) return u.replace("github.com","raw.githubusercontent.com").replace("/blob/","/");
+  if (/(onedrive\.live\.com|1drv\.ms|sharepoint\.com)/.test(u) && !/download=1/.test(u)) return u + (u.includes("?")?"&":"?") + "download=1";
+  return u;
+}
+async function loadFromUrl(u){
+  const url = normalizeUrl(u);
+  if (!url){ toast("Guarda primero un enlace en Ajustes › Nube."); return; }
+  toast("Leyendo el enlace…");
+  try{
+    const r = await fetch(url, {cache:"no-store"});
+    if (!r.ok) throw new Error("HTTP "+r.status);
+    readBuffer(await r.arrayBuffer(), url.split("/").pop().split("?")[0] || "enlace");
+  }catch(err){
+    console.error(err);
+    toast("El enlace no respondió o bloquea la lectura desde otra página (CORS). Descarga el archivo y cárgalo manualmente, o usa un enlace de Google Sheets/GitHub.", 9000);
+  }
+}
+
+/* ==========================================================
+   5. CÁLCULO Y PINTADO
+   ========================================================== */
+function recompute(){
+  if (!state.data) return;
+  state.result = Core.evaluate(state.data, state.cfg, state.params, state.justif, {desde:$("#fDesde").value, hasta:$("#fHasta").value});
+  render();
+}
+function applyTheme(){
+  const c = state.cfg.colores, r = document.documentElement;
+  r.style.setProperty("--atraso", c.atraso); r.style.setProperty("--puntual", c.puntual);
+  r.style.setProperty("--justificado", c.justificado); r.style.setProperty("--oro", c.justificado);
+  if (state.cfg.tema==="auto") r.removeAttribute("data-theme"); else r.setAttribute("data-theme", state.cfg.tema);
+  const dark = r.getAttribute("data-theme")==="dark" || (state.cfg.tema==="auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+  if (!dark){ r.style.setProperty("--navy", c.primario); r.style.setProperty("--vino", c.acento); }
+  else { r.style.removeProperty("--navy"); r.style.removeProperty("--vino"); }
+  $("#tTitulo").textContent = state.cfg.titulo; $("#tSub").textContent = state.cfg.subtitulo;
+  document.title = state.cfg.titulo;
+}
+function filtered(){
+  const q = Core.norm($("#fBuscar").value), dep = $("#fDepto").value;
+  return state.result.res.filter(s =>
+    (!q || Core.norm(`${s.nombre} ${s.id} ${s.cargo}`).includes(q)) &&
+    (!dep || s.departamento===dep) &&
+    (!$("#fSoloObs").checked || s.observacion) &&
+    (!$("#fSoloAtraso").checked || s.diasAtraso>0));
+}
+function fillDeptos(){
+  const sel = $("#fDepto"), cur = sel.value;
+  const deps = [...new Set(state.data.emps.map(e=>e.departamento).filter(Boolean))].sort();
+  sel.innerHTML = `<option value="">Todos los departamentos</option>` + deps.map(d=>`<option>${esc(d)}</option>`).join("");
+  sel.value = cur;
+}
+function render(){
+  const all = state.result.res, cfg = state.cfg;
+  const obs = all.filter(s=>s.observacion), conAtraso = all.filter(s=>s.diasAtraso>0);
+  const dDesde = $("#fDesde").value, dHasta = $("#fHasta").value;
+  const op = cfg.comparador===">=" ? "llegan o superan" : "superan";
+  $("#heroSentence").innerHTML = `<b>${obs.length}</b> de ${all.filter(s=>s.incluir).length} colaboradores ${op} los ${esc(cfg.umbralMensual)} minutos de atraso acumulado en el corte.`;
+  $("#bannerPend").classList.toggle("hidden", !state.pendiente);
+  $("#heroMeta").textContent = `${state.pendiente?"Sin guardar en la nube — ":""}Corte del ${dDesde?fmtFecha(dDesde):"—"} al ${dHasta?fmtFecha(dHasta):"—"} · Archivo: ${state.fileName} · Base de cálculo: ${cfg.baseCalculo==="neto"?"atraso neto (resta permanencia posterior)":"atraso bruto"} · Tolerancia diaria: ${cfg.toleranciaDiaria} min`;
+  const tot = all.reduce((a,s)=>a+s.minBase,0), dias = all.reduce((a,s)=>a+s.diasAtraso,0);
+  const sinReg = all.reduce((a,s)=>a+s.sinRegistro+s.omision,0), just = all.reduce((a,s)=>a+s.justificados,0);
+  $("#stats").innerHTML = [
+    [conAtraso.length,"personas con al menos un atraso"],[dias,"días con atraso"],[`${Core.hhmm(tot)}`,"horas:min de atraso considerado"],
+    [just,"atrasos justificados"],[sinReg,"días con horario y sin marcación completa"],[state.result.quality.length,"alertas de calidad de datos"]
+  ].map(([n,t])=>`<div><strong>${esc(n)}</strong><span>${esc(t)}</span></div>`).join("");
+  renderResumen(); renderCal(); renderCalidad(); renderParams();
+  if (!esAdmin()) document.querySelectorAll("#tParams input").forEach(i=>i.disabled=true);
+}
+function cellVal(s,k){
+  switch(k){
+    case "observacion": return s.observacion ? `<span class="obs">${esc(s.textoObs)}</span>` : (!s.incluir ? `<span class="pill">Excluido del control</span>` : (s.supera?"":`<span class="muted">—</span>`));
+    case "valor": return s.valor!=null ? `${s.valor.toFixed(2)}${s.superaTope?` <span class="pill red" title="Supera el ${state.cfg.topeMulta}% de la remuneración (tope ${s.tope.toFixed(2)})">tope</span>`:""}` : `<span class="muted">—</span>`;
+    case "nombre": return `<strong>${esc(s.nombre)}</strong>`;
+    case "minBase": case "minBruto": return s[k] ? `<span class="pill ${s.supera&&k==="minBase"?"red":""}">${s[k]}</span>` : "0";
+    default: return esc(s[k] ?? "");
+  }
+}
+function renderResumen(){
+  const cols = state.cfg.columnasResumen.filter(k=>COLS_RESUMEN[k]);
+  const {k, dir} = state.sort;
+  const rows = filtered().sort((a,b)=>{ const x=a[k]??"", y=b[k]??""; return (typeof x==="number"&&typeof y==="number" ? x-y : String(x).localeCompare(String(y),"es",{numeric:true})) * dir; });
+  $("#tResumen thead").innerHTML = "<tr>"+cols.map(c=>`<th data-sort="${c}" class="col-${c} ${COLS_RESUMEN[c].n?"num":""} ${c===k?(dir>0?"asc":"desc"):""}" scope="col">${COLS_RESUMEN[c].t}</th>`).join("")+"</tr>";
+  $("#tResumen tbody").innerHTML = rows.length ? rows.map(s=>`<tr data-id="${esc(s.id)}" class="${s.observacion?"flag":""} ${!s.incluir?"off":""}" tabindex="0">`+cols.map(c=>`<td class="col-${c} ${COLS_RESUMEN[c].n?"num":""}">${cellVal(s,c)}</td>`).join("")+"</tr>").join("")
+    : `<tr><td colspan="${cols.length}" class="muted">Nadie cumple los filtros actuales.</td></tr>`;
+}
+function dayCell(s, d){
+  const tip = `${s.nombre} — ${fmtFecha(d.fecha)}\nHorario: ${d.horario||"sin horario"}\nEntrada: ${d.entradaRaw||"—"} · Salida: ${d.salidaRaw||"—"}`;
+  const key = `data-id="${esc(s.id)}" data-f="${d.fecha}"`;
+  switch(d.estado){
+    case "atraso": return `<td class="c atraso" ${key} title="${esc(tip+`\nAtraso: ${d.min} min${d.comp?` (compensó ${d.comp} min al salir)`:""}`)}">${esc(d.entradaRaw)}<small>+${d.min}</small></td>`;
+    case "justificado": return `<td class="c justificado" ${key} title="${esc(tip+`\nJustificado: ${d.motivo}`)}">${esc(d.entradaRaw)}<small>J</small></td>`;
+    case "puntual": return `<td class="c puntual" title="${esc(tip)}">${esc(d.entradaRaw)}</td>`;
+    case "sin_registro": return `<td class="c sin" title="${esc(tip+"\nSin marcación")}">—</td>`;
+    case "omision": return `<td class="c sin" title="${esc(tip+"\nNo marcó entrada")}">s/e</td>`;
+    case "invalido": return `<td class="c inv" title="${esc(tip+"\nDato ilegible")}">${esc(d.entradaRaw||"?")}</td>`;
+    case "feriado": return `<td class="c" title="${esc(tip+"\nFeriado: no se evalúa")}"><span class="muted">F</span></td>`;
+    case "marca_sin_horario": return `<td class="c" title="${esc(tip+"\nMarcó sin horario asignado")}"><span class="muted">${esc(d.entradaRaw)}</span></td>`;
+    default: return `<td class="c" title="${esc(tip)}"></td>`;
+  }
+}
+function renderCal(){
+  const rows = filtered();
+  const fechas = [...new Set(rows.flatMap(s=>s.dias.map(d=>d.fecha)))].sort();
+  const head = `<thead><tr><th class="name">Colaborador</th>${fechas.map(f=>{const dw=new Date(f+"T12:00:00").getDay(); return `<th class="${dw===0||dw===6?"we":""}">${DOW[dw]}<br>${+f.slice(8)}/${+f.slice(5,7)}</th>`;}).join("")}</tr></thead>`;
+  const body = rows.map(s=>{ const m = Object.fromEntries(s.dias.map(d=>[d.fecha,d]));
+    return `<tr><td class="name" title="${esc(s.nombre)} — ${esc(s.departamento)}">${s.observacion?"● ":""}${esc(s.nombre)}</td>${fechas.map(f=>m[f]?dayCell(s,m[f]):`<td class="c"></td>`).join("")}</tr>`; }).join("");
+  $("#tCal").innerHTML = head + `<tbody>${body}</tbody>`;
+}
+function renderCalidad(){
+  const q = state.result.quality.slice();
+  for (const s of state.result.res){
+    if (s.sinRegistro) q.push({tipo:"Días con horario y sin marcación", nombre:s.nombre, fecha:"", detalle:`${s.sinRegistro} días. ¿Vacaciones, permiso, falta o persona fuera del biométrico?`});
+    if (s.omision) q.push({tipo:"Omisión de marcación de entrada", nombre:s.nombre, fecha:"", detalle:`${s.omision} días con salida y sin entrada (art. 29 lit. a del Reglamento Interno).`});
+    const heavy = s.dias.filter(d=>d.estado==="atraso" && d.min>=60);
+    if (heavy.length) q.push({tipo:"Atraso de 60 min o más en un día", nombre:s.nombre, fecha:heavy.map(d=>d.fecha).join(", "), detalle:"Suele indicar permiso no registrado o un horario mal cargado. Verificar antes de observar."});
+  }
+  $("#tCalidad tbody").innerHTML = q.length ? q.map(i=>`<tr><td>${esc(i.tipo)}</td><td>${esc(i.nombre)}</td><td>${esc(i.fecha)}</td><td>${esc(i.detalle)}</td></tr>`).join("") : `<tr><td colspan="4" class="muted">Sin alertas.</td></tr>`;
+}
+function renderParams(){
+  $("#tParams tbody").innerHTML = state.data.emps.map(e=>{ const p = state.params[e.id]||{};
+    return `<tr data-id="${esc(e.id)}"><td>${esc(e.id)}</td><td><strong>${esc(e.nombre)}</strong><br><span class="muted">${esc(e.departamento)} ${e.cargo?"— "+esc(e.cargo):""}</span></td>
+      <td><input type="checkbox" data-p="incluir" ${p.incluir===false?"":"checked"} aria-label="Incluir a ${esc(e.nombre)}"></td>
+      <td><input type="text" data-p="horarioAlterno" value="${esc(p.horarioAlterno||"")}" placeholder="ej. 08:30 - 17:00"></td>
+      <td><input type="number" min="0" step="0.01" data-p="remuneracion" value="${esc(p.remuneracion||"")}"></td>
+      <td><input type="text" data-p="nota" value="${esc(p.nota||"")}" placeholder="Sustento de la exclusión o del horario"></td></tr>`; }).join("");
+}
+
+/* ==========================================================
+   6. DETALLE Y JUSTIFICACIONES
+   ========================================================== */
+function openDetalle(id){
+  const s = state.result.res.find(x=>x.id===id); if (!s) return;
+  $("#detTitulo").textContent = `${s.nombre} (ID ${s.id})`;
+  const estados = {atraso:"Atraso", justificado:"Justificado", puntual:"Puntual", sin_registro:"Sin marcación", omision:"No marcó entrada", invalido:"Dato ilegible", marca_sin_horario:"Marcó sin horario", libre:"Sin horario", no_evaluado:"No evaluado", feriado:"Feriado"};
+  $("#detBody").innerHTML = `
+    <p class="muted">${esc(s.departamento)}${s.cargo?" — "+esc(s.cargo):""}${s.nota?` · Nota: ${esc(s.nota)}`:""}</p>
+    <div class="stats" style="margin-top:0">
+      <div><strong>${s.diasAtraso}</strong><span>días con atraso</span></div>
+      <div><strong>${s.minBruto}</strong><span>min. bruto</span></div>
+      <div><strong>${s.minComp}</strong><span>min. compensados al salir</span></div>
+      <div><strong>${s.minBase}</strong><span>min. considerados</span></div>
+      <div><strong>${s.justificados}</strong><span>justificados (${s.minJustificados} min)</span></div>
+    </div>
+    ${s.observacion?`<p class="obs">${esc(s.textoObs)}</p>`:""}
+    ${s.valor!=null?`<p>Valor estimado: <strong>USD ${s.valor.toFixed(2)}</strong> · Tope del ${state.cfg.topeMulta}%: USD ${s.tope.toFixed(2)}${s.superaTope?` <span class="pill red">supera el tope</span>`:""}</p>`:""}
+    <div class="scroll"><table><thead><tr><th>Fecha</th><th>Horario</th><th>Entrada</th><th>Salida</th><th>Estado</th><th class="num">Min.</th><th>Acción</th></tr></thead><tbody>
+    ${s.dias.filter(d=>d.estado!=="libre").map(d=>`<tr style="cursor:default">
+      <td>${DOW[d.dow]} ${fmtFecha(d.fecha)}</td><td>${esc(d.horario)}</td><td>${esc(d.entradaRaw)}</td><td>${esc(d.salidaRaw)}</td>
+      <td>${d.estado==="atraso"?`<span class="pill red">Atraso</span>`:esc(estados[d.estado]||d.estado)}${d.motivo?`<br><span class="muted">${esc(d.motivo)}${d.motivoOrigen==="excel"?" (desde el Excel)":""}${d.por?` — registró ${esc(d.por)}`:""}</span>`:""}</td>
+      <td class="num">${d.min||""}${d.comp?`<br><span class="muted">comp. ${d.comp}</span>`:""}</td>
+      <td>${(d.estado==="atraso"||(d.estado==="justificado"&&d.motivoOrigen==="tablero"))&&puedeJustificar(s.id)?`<button class="btn small" data-just="${esc(s.id)}|${d.fecha}">${d.estado==="atraso"?"Justificar":"Editar"}</button>`:""}</td></tr>`).join("")}
+    </tbody></table></div>`;
+  if (!$("#dDetalle").open) $("#dDetalle").showModal();
+}
+let justKey = null;
+function openJust(key){
+  justKey = key; const [id,f] = key.split("|");
+  const s = state.result.res.find(x=>x.id===id), d = s && s.dias.find(x=>x.fecha===f);
+  $("#justInfo").textContent = `${s?s.nombre:id} — ${fmtFecha(f)} — entrada ${d?d.entradaRaw:""}, ${d?d.min:""} min de atraso.`;
+  $("#justMotivo").value = state.justif[key]?.motivo || "";
+  $("#justQuitar").classList.toggle("hidden", !state.justif[key]);
+  $("#dJust").showModal(); $("#justMotivo").focus();
+}
+
+/* ==========================================================
+   7. AJUSTES (formulario generado)
+   ========================================================== */
+const FIELDS = [
+  {h:"Apariencia"},
+  {k:"titulo", l:"Título del tablero"}, {k:"subtitulo", l:"Subtítulo"},
+  {k:"tema", l:"Tema", type:"select", opts:[["auto","Según el sistema"],["light","Claro"],["dark","Oscuro"]]},
+  {k:"colores.atraso", l:"Color de atraso", type:"color"}, {k:"colores.puntual", l:"Color de puntual", type:"color"},
+  {k:"colores.justificado", l:"Color de justificado", type:"color"}, {k:"colores.primario", l:"Color principal", type:"color"},
+  {k:"colores.acento", l:"Color de títulos", type:"color"},
+  {h:"Reglas de cálculo"},
+  {k:"toleranciaDiaria", l:"Tolerancia diaria (minutos)", type:"number", help:"0 = cualquier minuto después de la hora de entrada es atraso."},
+  {k:"toleranciaModo", l:"Si pasa la tolerancia, contar…", type:"select", opts:[["completo","Todo el atraso"],["excedente","Solo los minutos sobre la tolerancia"]]},
+  {k:"umbralMensual", l:"Umbral del corte (minutos)", type:"number"},
+  {k:"comparador", l:"Genera observación cuando…", type:"select", opts:[[">","Se pasa del umbral (>)"],[">=","Llega o pasa el umbral (≥)"]]},
+  {k:"baseCalculo", l:"Base de cálculo", type:"select", opts:[["bruto","Atraso bruto"],["neto","Atraso neto: resta lo que se quedó después de su hora de salida ese día"]]},
+  {k:"montoDescuento", l:"Minutos a descontar", type:"select", opts:[["total","Todos los minutos de atraso"],["excedente","Solo los minutos sobre el umbral"]]},
+  {k:"diasNoEvaluados", l:"Días que no se evalúan", type:"days"},
+  {k:"feriados", l:"Feriados y días de descanso obligatorio", type:"textarea", help:"Fechas AAAA-MM-DD separadas por coma. Actualízalas cada año según el calendario oficial."},
+  {k:"horasMensuales", l:"Horas mensuales para valor hora", type:"number", help:"240 para jornada de 40 h semanales."},
+  {k:"topeMulta", l:"Tope de multa (% de la remuneración)", type:"number"},
+  {k:"textoObservacion", l:"Texto de la observación", type:"textarea", wide:1, help:"Variables: {minutos} {hhmm} {minutosTotales} {dias} {umbral} {nombre}"},
+  {h:"Columnas visibles en el resumen"},
+  {k:"columnasResumen", l:"Columnas", type:"cols", wide:1},
+  {h:"Lectura del Excel (cambia esto si la plantilla del biométrico cambia)"},
+  {k:"columnas.fecha", l:"Encabezado de fecha"}, {k:"columnas.horario", l:"Encabezado de horario"},
+  {k:"columnas.entrada", l:"Encabezado de entrada"}, {k:"columnas.salida", l:"Encabezado de salida"},
+  {k:"columnas.justificacion", l:"Encabezado de justificación (opcional)", help:"Si el Excel trae esta columna con texto, ese día cuenta como justificado."},
+  {k:"campos.marcador", l:"Texto que identifica la fila de datos del empleado"},
+  {k:"campos.id", l:"Etiqueta del ID"}, {k:"campos.nombres", l:"Etiqueta de nombres"}, {k:"campos.apellidos", l:"Etiqueta de apellidos"},
+  {k:"campos.departamento", l:"Etiqueta de departamento"}, {k:"campos.cargo", l:"Etiqueta de cargo"},
+  {k:"formatoFecha", l:"Formato de fecha", type:"select", opts:[["auto","Automático"],["dmy","Día/mes/año"],["mdy","Mes/día/año"]]},
+  {k:"hojasIgnoradas", l:"Hojas a ignorar (separadas por coma)"},
+  {h:"Nube"},
+  {k:"apiURL", l:"URL de Apps Script (/exec)", wide:1, help:"Conecta el tablero a la hoja de cálculo. Lo ideal es ponerla en config.json del repositorio para que todos la usen. Al cambiarla, recarga la página."},
+  {k:"fuenteURL", l:"Enlace del Excel en la nube (modo local)", wide:1, help:"Google Sheets: Compartir › cualquier persona con el enlace (el tablero lo convierte a descarga). OneDrive/SharePoint suelen bloquear la lectura desde otra página; en ese caso descarga y carga el archivo."},
+  {k:"cargarAlAbrir", l:"Leer el enlace automáticamente al abrir", type:"checkbox"}
+];
+const getP = (o,p) => p.split(".").reduce((a,k)=>a?.[k], o);
+const setP = (o,p,v) => { const ks=p.split("."); let a=o; ks.slice(0,-1).forEach(k=>a=a[k]??={}); a[ks.at(-1)]=v; };
+function renderAjustes(){
+  const c = state.cfg;
+  $("#formAjustes").innerHTML = FIELDS.map(f=>{
+    if (f.h) return `<h4>${esc(f.h)}</h4>`;
+    const v = getP(c,f.k), id = "cfg_"+f.k.replace(/\./g,"_");
+    let input;
+    switch(f.type){
+      case "select": input = `<select id="${id}" data-k="${f.k}">${f.opts.map(([a,b])=>`<option value="${a}" ${v==a?"selected":""}>${esc(b)}</option>`).join("")}</select>`; break;
+      case "number": input = `<input id="${id}" type="number" step="any" data-k="${f.k}" value="${esc(v)}">`; break;
+      case "color": input = `<input id="${id}" type="color" data-k="${f.k}" value="${esc(v)}">`; break;
+      case "textarea": input = `<textarea id="${id}" rows="3" data-k="${f.k}">${esc(v)}</textarea>`; break;
+      case "checkbox": input = `<label style="font-weight:400"><input id="${id}" type="checkbox" data-k="${f.k}" ${v?"checked":""}> Sí</label>`; break;
+      case "days": input = `<div class="chk">${DOW.map((d,i)=>`<label><input type="checkbox" data-day="${i}" ${v.includes(i)?"checked":""}>${d}</label>`).join("")}</div>`; break;
+      case "cols": input = `<div class="chk">${Object.entries(COLS_RESUMEN).map(([k,o])=>`<label><input type="checkbox" data-col="${k}" ${v.includes(k)?"checked":""}>${esc(o.t)}</label>`).join("")}</div>`; break;
+      default: input = `<input id="${id}" type="text" data-k="${f.k}" value="${esc(v)}">`;
+    }
+    return `<div class="field ${f.wide?"wide":""}"><label for="${id}">${esc(f.l)}</label>${input}${f.help?`<small>${esc(f.help)}</small>`:""}</div>`;
+  }).join("");
+}
+function onAjusteChange(ev){
+  const t = ev.target, c = state.cfg;
+  if (t.dataset.day!==undefined) c.diasNoEvaluados = [...document.querySelectorAll("[data-day]:checked")].map(x=>+x.dataset.day);
+  else if (t.dataset.col!==undefined) c.columnasResumen = Object.keys(COLS_RESUMEN).filter(k=>document.querySelector(`[data-col="${k}"]`).checked);
+  else if (t.dataset.k){
+    const f = FIELDS.find(x=>x.k===t.dataset.k);
+    setP(c, t.dataset.k, f.type==="number" ? Number(t.value) : f.type==="checkbox" ? t.checked : t.value);
+    if (t.dataset.k.startsWith("columnas.") || t.dataset.k.startsWith("campos.") || ["formatoFecha","hojasIgnoradas"].includes(t.dataset.k)) state.needReparse = true;
+  }
+  if (t.dataset.k==="apiURL"){ state.apiURL = c.apiURL.trim(); save(); toast("Recarga la página para aplicar la conexión."); return; }
+  save(); applyTheme(); recompute();
+  if (state.apiURL && esAdmin()){ clearTimeout(state._cfgT); state._cfgT = setTimeout(()=>api("guardarConfig",{cfg:{...state.cfg, apiURL:undefined}}).then(()=>toast("Ajustes guardados en la nube.")).catch(err=>toast("No se guardaron los ajustes: "+err.message, 7000)), 900); }
+}
+
+/* ==========================================================
+   8. EXPORTAR
+   ========================================================== */
+function exportExcel(){
+  const R = state.result.res, wb = XLSX.utils.book_new();
+  const resumen = R.map(s=>({ ID:s.id, Colaborador:s.nombre, Departamento:s.departamento, Cargo:s.cargo, "Incluido en control":s.incluir?"Sí":"No",
+    "Días evaluados":s.evaluados, "Días con atraso":s.diasAtraso, "Min. atraso bruto":s.minBruto, "Min. compensados":s.minComp,
+    "Min. considerados":s.minBase, "Min. a descontar (sugerido)":s.minDescuento, "Días sin marcación":s.sinRegistro, "Omisión de entrada":s.omision,
+    "Atrasos justificados":s.justificados, "Valor estimado USD":s.valor??"", "Supera tope":s.superaTope?"Sí":"", "Observación":s.textoObs, "Nota":s.nota }));
+  const detalle = R.flatMap(s=>s.dias.filter(d=>d.estado==="atraso"||d.estado==="justificado").map(d=>({ ID:s.id, Colaborador:s.nombre, Fecha:d.fecha, Horario:d.horario, Entrada:d.entradaRaw, Salida:d.salidaRaw, "Min. atraso":d.min, "Min. compensados":d.comp, Estado:d.estado==="atraso"?"Atraso":"Justificado", Motivo:d.motivo, "Justificado por":d.por||"" })));
+  const calidad = Array.from(document.querySelectorAll("#tCalidad tbody tr")).map(tr=>{ const td=tr.children; return td.length===4?{Tipo:td[0].textContent, Colaborador:td[1].textContent, Fecha:td[2].textContent, Detalle:td[3].textContent}:null; }).filter(Boolean);
+  const params = [
+    ["Parámetro","Valor"],["Archivo",state.fileName],["Desde",$("#fDesde").value],["Hasta",$("#fHasta").value],["Tolerancia diaria (min)",state.cfg.toleranciaDiaria],
+    ["Umbral del corte (min)",state.cfg.umbralMensual],["Comparador",state.cfg.comparador],["Base de cálculo",state.cfg.baseCalculo],["Minutos a descontar",state.cfg.montoDescuento],["Generado",new Date().toLocaleString("es-EC")]];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumen), "Resumen");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detalle.length?detalle:[{Info:"Sin atrasos"}]), "Detalle de atrasos");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(calidad.length?calidad:[{Info:"Sin alertas"}]), "Calidad de datos");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(params), "Parámetros");
+  const d = $("#fHasta").value || new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `puntualidad_corte_${d}.xlsx`);
+}
+function download(name, text){ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:"application/json"})); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
+
+/* ==========================================================
+   9. EVENTOS
+   ========================================================== */
+function bind(){
+  const pick = () => $("#file").click();
+  $("#bCargar").onclick = pick; $("#bCargar2").onclick = pick;
+  $("#file").onchange = e => { const f=e.target.files[0]; if (f) f.arrayBuffer().then(b=>readBuffer(b,f.name)); e.target.value=""; };
+  const drop = $("#drop");
+  ["dragenter","dragover"].forEach(t=>document.addEventListener(t,e=>{e.preventDefault(); drop.classList.add("over");}));
+  ["dragleave","drop"].forEach(t=>document.addEventListener(t,e=>{e.preventDefault(); drop.classList.remove("over");}));
+  document.addEventListener("drop", e=>{ const f=e.dataTransfer.files[0]; if (f) f.arrayBuffer().then(b=>readBuffer(b,f.name)); });
+  $("#bUrl").onclick = () => loadFromUrl(state.cfg.fuenteURL);
+  $("#bUrlQuick").onclick = () => { const u=$("#urlQuick").value.trim(); if(u){ state.cfg.fuenteURL=u; save(); loadFromUrl(u);} };
+  $("#bExport").onclick = exportExcel;
+  $("#bPrint").onclick = () => { document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("print-me", p.id==="p-"+state.tab)); window.print(); };
+  $("#bAjustes").onclick = () => { renderAjustes(); $("#dAjustes").showModal(); };
+  $("#formAjustes").addEventListener("change", onAjusteChange);
+  document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>b.closest("dialog").close());
+  document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+    state.tab=b.dataset.tab; document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-selected", x===b));
+    document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("active", p.id==="p-"+state.tab));
+    if (state.tab==="bitacora") cargarBitacora();
+  });
+  $("#fLogin").addEventListener("submit", e=>{ e.preventDefault(); ingresar(); });
+  $("#bSalir").onclick = salir;
+  $("#bGuardarCorte").onclick = guardarCorteNube;
+  $("#fCorte").addEventListener("change", e=>cargarCorte(e.target.value).catch(err=>toast(err.message, 7000)));
+  ["#fBuscar","#fDepto","#fSoloObs","#fSoloAtraso"].forEach(s=>$(s).addEventListener("input", ()=>{ renderResumen(); renderCal(); }));
+  ["#fDesde","#fHasta"].forEach(s=>$(s).addEventListener("change", recompute));
+  $("#tResumen").addEventListener("click", e=>{
+    const th = e.target.closest("th[data-sort]");
+    if (th){ const k=th.dataset.sort; state.sort = {k, dir: state.sort.k===k ? -state.sort.dir : (COLS_RESUMEN[k].n?-1:1)}; renderResumen(); return; }
+    const tr = e.target.closest("tr[data-id]"); if (tr) openDetalle(tr.dataset.id);
+  });
+  $("#tResumen").addEventListener("keydown", e=>{ if (e.key==="Enter"){ const tr=e.target.closest("tr[data-id]"); if(tr) openDetalle(tr.dataset.id);} });
+  $("#tCal").addEventListener("click", e=>{ const td=e.target.closest("td.atraso,td.justificado"); if(!td) return;
+    const s = state.result.res.find(x=>x.id===td.dataset.id), d = s?.dias.find(x=>x.fecha===td.dataset.f);
+    if (d?.estado==="justificado" && d.motivoOrigen==="excel"){ toast("Este día viene justificado desde el Excel. Edítalo en la hoja de origen."); return; }
+    if (!puedeJustificar(td.dataset.id)){ toast(motivoNoJustifica(td.dataset.id)); return; }
+    openJust(td.dataset.id+"|"+td.dataset.f); });
+  $("#detBody").addEventListener("click", e=>{ const b=e.target.closest("[data-just]"); if (b) openJust(b.dataset.just); });
+  $("#justGuardar").onclick = async () => { const m=$("#justMotivo").value.trim(); if(!m){ toast("Escribe el motivo y su respaldo."); return; }
+    const [id, fecha] = justKey.split("|");
+    if (state.apiURL){
+      if (state.pendiente){ toast("Guarda primero el corte en la nube."); return; }
+      $("#justGuardar").disabled = true;
+      try { const j = await api("justificar", {periodo:state.corteActual?.periodo, id, fecha, motivo:m}); state.justif[justKey] = j.entrada; }
+      catch(err){ toast(err.message, 7000); return; }
+      finally { $("#justGuardar").disabled = false; }
+    } else state.justif[justKey] = {motivo:m, registrado:new Date().toISOString()};
+    save(); $("#dJust").close(); recompute(); if ($("#dDetalle").open) openDetalle(id); toast("Justificación guardada."); };
+  $("#justQuitar").onclick = async () => { const [id, fecha] = justKey.split("|");
+    if (state.apiURL){
+      try { await api("quitarJustificacion", {periodo:state.corteActual?.periodo, id, fecha}); }
+      catch(err){ toast(err.message, 7000); return; }
+    }
+    delete state.justif[justKey]; save(); $("#dJust").close(); recompute(); if ($("#dDetalle").open) openDetalle(id); toast("Justificación quitada."); };
+  $("#tParams").addEventListener("change", e=>{ const t=e.target, id=t.closest("tr").dataset.id, k=t.dataset.p; if(!k) return;
+    const p = state.params[id] ??= {};
+    p[k] = t.type==="checkbox" ? t.checked : (t.type==="number" ? (t.value===""?null:Number(t.value)) : t.value.trim());
+    save(); recompute();
+    if (state.apiURL) api("guardarParam", {id, param:p}).then(()=>toast("Parámetro guardado en la nube.")).catch(err=>toast("No se guardó: "+err.message, 7000)); });
+  $("#bExpCfg").onclick = () => download("config_puntualidad.json", JSON.stringify({cfg:state.cfg, params:state.params, justif:state.justif}, null, 2));
+  $("#bImpCfg").onclick = () => $("#fileCfg").click();
+  $("#fileCfg").onchange = e => { const f=e.target.files[0]; if(!f) return; f.text().then(t=>{ try{ const o=JSON.parse(t);
+      state.cfg = deepMerge(DEFAULTS, o.cfg||o); if (o.params) state.params=o.params; if (o.justif) state.justif=o.justif;
+      save(); applyTheme(); renderAjustes(); reparse(); toast("Configuración importada."); }catch(err){ toast("El archivo no es un JSON válido."); } }); e.target.value=""; };
+  $("#bReset").onclick = () => { if(!confirm("¿Restablecer los ajustes? Las justificaciones y los parámetros por colaborador se conservan.")) return;
+    state.cfg = deepMerge(DEFAULTS, state.repoCfg||{}); save(); applyTheme(); renderAjustes(); reparse(); };
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+}
+// Relee el último archivo si cambian las reglas de lectura
+const _readBuffer = readBuffer;
+readBuffer = function(buf, name){ state.lastBuf = buf.slice(0); state.lastName = name; const prev = state.data; _readBuffer(buf, name);
+  if (state.apiURL && state.data && state.data !== prev) marcarPendiente(); };
+function reparse(){ if (state.lastBuf) _readBuffer(state.lastBuf.slice(0), state.lastName); else recompute(); }
+document.addEventListener("change", e=>{ if (state.needReparse && e.target.closest("#formAjustes")){ state.needReparse=false; reparse(); } });
+
+/* ==========================================================
+   10. MODO NUBE (Apps Script + Google Sheets)
+   Si apiURL está vacío, nada de esto se usa y el tablero
+   funciona solo en el navegador, como la versión 1.
+   ========================================================== */
+const esAdmin = () => !state.apiURL || state.session?.tipo === "admin";
+function puedeJustificar(id){
+  if (!state.apiURL) return true;
+  const s = state.session;
+  return !!s && s.tipo !== "lector" && !(s.empId && String(s.empId) === String(id));
+}
+function motivoNoJustifica(id){
+  const s = state.session;
+  if (s && s.empId && String(s.empId) === String(id)) return "No puedes justificar tus propios atrasos. Debe hacerlo otra persona autorizada.";
+  return "Tu perfil es de consulta. No puedes justificar.";
+}
+async function api(action, payload={}){
+  let r;
+  try {
+    r = await fetch(state.apiURL, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({action, token: state.session?.token, ...payload}) });
+  } catch(err){ throw new Error("No hay conexión con el servidor. Revisa internet o la URL de Apps Script."); }
+  if (!r.ok) throw new Error("El servidor respondió con error "+r.status+".");
+  let j; try { j = await r.json(); } catch(e){ throw new Error("La respuesta del servidor no es válida. ¿La implementación tiene acceso «Cualquier persona»?"); }
+  if (j.relogin){ cerrarSesionLocal(); mostrarLogin(j.error); throw new Error(j.error); }
+  if (!j.ok) throw new Error(j.error || "Error desconocido.");
+  return j;
+}
+function applyRole(){
+  const nube = !!state.apiURL, logged = !nube || !!state.session, admin = esAdmin();
+  $("#bCargar").classList.toggle("hidden", !logged || !admin);
+  $("#bAjustes").classList.toggle("hidden", !logged || !admin);
+  $("#bUrl").classList.toggle("hidden", nube);
+  $("#urlQuickRow").classList.toggle("hidden", nube);
+  $("#bExport").classList.toggle("hidden", !logged);
+  $("#bPrint").classList.toggle("hidden", !logged);
+  $("#bSalir").classList.toggle("hidden", !(nube && state.session));
+  $("#bGuardarCorte").classList.toggle("hidden", !(nube && admin && state.pendiente));
+  document.querySelector('[data-tab="bitacora"]').classList.toggle("hidden", !(nube && state.session && admin));
+  const perfiles = {admin:"Administrador", director:"Director de área", lector:"Consulta"};
+  $("#who").textContent = nube && state.session ? `${state.session.usuario} (${perfiles[state.session.tipo]||state.session.tipo})` : "";
+}
+function mostrarLogin(msg){
+  $("#login").classList.remove("hidden"); $("#drop").classList.add("hidden"); $("#dash").classList.add("hidden");
+  $("#lMsg").textContent = msg || ""; applyRole(); setTimeout(()=>$("#lUser").focus(), 50);
+}
+function cerrarSesionLocal(){
+  state.session = null; state.data = null; state.result = null; state.justif = {}; state.params = {}; state.pendiente = false;
+  try { sessionStorage.removeItem(STORE_KEY+"_s"); } catch(e){}
+}
+async function ingresar(){
+  const u = $("#lUser").value.trim(), c = $("#lPass").value;
+  if (!u || !c){ $("#lMsg").textContent = "Escribe usuario y clave."; return; }
+  $("#bLogin").disabled = true; $("#lMsg").textContent = "Verificando…";
+  try {
+    const j = await api("login", {usuario:u, clave:c});
+    state.session = {token:j.token, usuario:j.usuario, tipo:j.tipo, empId:j.empId||""};
+    try { sessionStorage.setItem(STORE_KEY+"_s", JSON.stringify(state.session)); } catch(e){}
+    $("#lPass").value = ""; $("#lMsg").textContent = "";
+    await arrancarNube();
+  } catch(err){ if (!state.session) $("#lMsg").textContent = err.message; else toast(err.message, 7000); }
+  finally { $("#bLogin").disabled = false; }
+}
+async function salir(){
+  try { await api("salir"); } catch(e){}
+  cerrarSesionLocal(); mostrarLogin("Sesión cerrada.");
+}
+async function arrancarNube(){
+  const j = await api("inicio");
+  state.cfg = deepMerge(deepMerge(DEFAULTS, state.repoCfg||{}), j.cfg||{});
+  state.cfg.apiURL = state.apiURL;
+  state.cortes = j.cortes || [];
+  applyTheme(); applyRole();
+  $("#login").classList.add("hidden");
+  if (!state.cortes.length){
+    $("#drop").classList.remove("hidden");
+    if (esAdmin()) { $("#drop h2").textContent = "Carga el primer corte"; toast("Todavía no hay cortes en la nube. Carga el Excel y guárdalo."); }
+    else { $("#drop h2").textContent = "Todavía no hay cortes publicados"; $("#drop p").textContent = "Talento Humano aún no ha publicado ningún corte de asistencia."; $("#drop .row").classList.add("hidden"); }
+    return;
+  }
+  await cargarCorte(state.cortes[0].periodo);
+}
+async function cargarCorte(periodo){
+  toast("Cargando corte…", 10000);
+  const j = await api("corte", {periodo});
+  if (j.vacio) return;
+  state.data = {emps:j.emps, issues:[]}; state.justif = j.justif || {}; state.params = j.params || {};
+  state.fileName = j.corte.archivo || j.corte.hoja; state.corteActual = j.corte; state.pendiente = false;
+  state.lastBuf = null;
+  const all = j.emps.flatMap(e=>e.days.map(d=>d.fecha)).sort();
+  $("#fDesde").value = all[0] || ""; $("#fHasta").value = all[all.length-1] || "";
+  fillCortes();
+  $("#drop").classList.add("hidden"); $("#dash").classList.remove("hidden");
+  $("#bExport").disabled = false; $("#bPrint").disabled = false;
+  applyRole(); fillDeptos(); recompute();
+  toast(j.emps.length ? `Corte al ${fmtFecha(j.corte.periodo)}: ${j.emps.length} colaboradores.` : "Tu perfil no tiene colaboradores asignados en este corte.");
+}
+function fillCortes(){
+  const sel = $("#fCorte");
+  sel.classList.toggle("hidden", !state.apiURL || !state.cortes?.length);
+  sel.innerHTML = (state.pendiente ? `<option value="">Excel sin guardar</option>` : "") +
+    (state.cortes||[]).map(c=>`<option value="${esc(c.periodo)}">Corte al ${esc(fmtFecha(c.periodo))}</option>`).join("");
+  sel.value = state.pendiente ? "" : (state.corteActual?.periodo || "");
+}
+function marcarPendiente(){
+  state.pendiente = true; fillCortes(); applyRole(); render();
+  toast("Revisa el corte. Si está bien, pulsa «Guardar corte en la nube».", 6000);
+}
+async function guardarCorteNube(){
+  if (!state.data || !state.pendiente) return;
+  const fechas = state.data.emps.flatMap(e=>e.days.map(d=>d.fecha)).sort();
+  const desde = fechas[0], hasta = fechas[fechas.length-1];
+  if ((state.cortes||[]).some(c=>c.periodo===hasta) && !confirm(`Ya existe un corte al ${fmtFecha(hasta)}. ¿Reemplazarlo? Las justificaciones y los parámetros se conservan.`)) return;
+  const b = $("#bGuardarCorte"); b.disabled = true; toast("Guardando en la nube…", 30000);
+  try {
+    const j = await api("guardarCorte", {archivo:state.fileName, desde, hasta, emps:state.data.emps});
+    state.cortes = j.cortes; await cargarCorte(hasta);
+    toast(`Corte al ${fmtFecha(hasta)} guardado en la nube.`);
+  } catch(err){ toast("No se pudo guardar: "+err.message, 9000); }
+  finally { b.disabled = false; }
+}
+async function cargarBitacora(){
+  const tb = $("#tLog tbody"); tb.innerHTML = `<tr><td colspan="5" class="muted">Cargando…</td></tr>`;
+  try {
+    const j = await api("bitacora");
+    tb.innerHTML = j.filas.length ? j.filas.map(f=>`<tr style="cursor:default">${f.map(c=>`<td>${esc(c)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="5" class="muted">Sin registros.</td></tr>`;
+  } catch(err){ tb.innerHTML = `<tr><td colspan="5" class="muted">${esc(err.message)}</td></tr>`; }
+}
+
+/* ==========================================================
+   11. INICIO
+   ========================================================== */
+(async function init(){
+  if (location.protocol.startsWith("http")){
+    try { const r = await fetch("config.json", {cache:"no-store"}); if (r.ok){ const o = await r.json(); state.repoCfg = o.cfg||o; if (o.params && !(o.cfg||o).apiURL) state.params = o.params; } } catch(e){}
+  }
+  const local = loadLocal();
+  const qs = new URLSearchParams(location.search);
+  state.apiURL = (qs.get("api") || state.repoCfg?.apiURL || local?.cfg?.apiURL || "").trim();
+  if (!/^https?:\/\//i.test(state.apiURL)) state.apiURL = "";   // ignora el texto de ejemplo de config.json
+  state.cfg = deepMerge(DEFAULTS, state.repoCfg||{});
+  if (state.apiURL){
+    state.cfg.apiURL = state.apiURL;
+    if (local?.cfg?.tema) state.cfg.tema = local.cfg.tema;
+    applyTheme(); bind(); applyRole();
+    let ses = null; try { ses = JSON.parse(sessionStorage.getItem(STORE_KEY+"_s")||"null"); } catch(e){}
+    if (ses?.token){ state.session = ses; try { await arrancarNube(); } catch(err){ if (state.session) { cerrarSesionLocal(); mostrarLogin(err.message); } } }
+    else mostrarLogin();
+    return;
+  }
+  if (local){ state.cfg = deepMerge(state.cfg, local.cfg||{}); state.params = {...state.params, ...(local.params||{})}; state.justif = local.justif||{}; }
+  applyTheme(); bind(); applyRole();
+  const src = qs.get("src");
+  if (src) loadFromUrl(src);
+  else if (state.cfg.cargarAlAbrir && state.cfg.fuenteURL) loadFromUrl(state.cfg.fuenteURL);
+})();
+</script>
+</body>
+</html>

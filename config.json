@@ -1,0 +1,58 @@
+{
+  "cfg": {
+    "titulo": "Control de puntualidad",
+    "subtitulo": "Fundación Mariana de Jesús — Talento Humano",
+    "tema": "auto",
+    "colores": {
+      "atraso": "#C8102E",
+      "puntual": "#2F7D59",
+      "justificado": "#FFBB33",
+      "primario": "#003151",
+      "acento": "#8E1537"
+    },
+    "toleranciaDiaria": 0,
+    "toleranciaModo": "completo",
+    "umbralMensual": 30,
+    "comparador": ">",
+    "baseCalculo": "bruto",
+    "montoDescuento": "total",
+    "diasNoEvaluados": [],
+    "feriados": "",
+    "horasMensuales": 240,
+    "topeMulta": 10,
+    "textoObservacion": "Observación de descuento: {minutos} min ({hhmm}) por {dias} atrasos en el corte. Pendiente de justificación (art. 29 lit. c del Reglamento Interno).",
+    "columnas": {
+      "fecha": "Fecha",
+      "horario": "Horario",
+      "entrada": "Entrada",
+      "salida": "Salida",
+      "justificacion": "Justificación"
+    },
+    "campos": {
+      "marcador": "Id del Empleado",
+      "id": "Id del Empleado",
+      "nombres": "Nombres",
+      "apellidos": "Apellidos",
+      "departamento": "Departamento",
+      "cargo": "Cargo"
+    },
+    "formatoFecha": "auto",
+    "hojasIgnoradas": "",
+    "apiURL": "https://script.google.com/macros/s/AKfycbxyiSQ54VWkI4U5QSMuq0eKdNKvNWRz7O-DXagMciv2BuBzlTlYD1BcJnSOfNCNzTtw/exec",
+    "fuenteURL": "",
+    "cargarAlAbrir": false,
+    "columnasResumen": [
+      "id",
+      "nombre",
+      "departamento",
+      "diasAtraso",
+      "minBase",
+      "minComp",
+      "observacion",
+      "sinRegistro",
+      "omision",
+      "justificados",
+      "valor"
+    ]
+  }
+}
